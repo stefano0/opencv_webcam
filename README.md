@@ -192,6 +192,90 @@ Esegue un comando shell.
 }
 ```
 
+### start
+Esegue un metodo da un file Python specificato.
+
+**Parametri:**
+- `filename`: Path del file Python (.py)
+- `method`: Nome del metodo da eseguire
+- `params` (opzionale): Parametri da passare al metodo (dizionario o lista)
+
+**Richiesta senza parametri:**
+```json
+{
+  "command": "start",
+  "filename": "example_module.py",
+  "method": "hello_world"
+}
+```
+
+**Risposta:**
+```json
+{
+  "status": "success",
+  "result": "Hello, World!",
+  "module": "example_module",
+  "method": "hello_world"
+}
+```
+
+**Richiesta con parametri (dizionario):**
+```json
+{
+  "command": "start",
+  "filename": "example_module.py",
+  "method": "add_numbers",
+  "params": {"a": 10, "b": 20}
+}
+```
+
+**Risposta:**
+```json
+{
+  "status": "success",
+  "result": 30,
+  "module": "example_module",
+  "method": "add_numbers"
+}
+```
+
+**Richiesta con parametri (lista):**
+```json
+{
+  "command": "start",
+  "filename": "example_module.py",
+  "method": "fibonacci",
+  "params": {"n": 10}
+}
+```
+
+**Risposta:**
+```json
+{
+  "status": "success",
+  "result": [0, 1, 1, 2, 3, 5, 8, 13, 21, 34],
+  "module": "example_module",
+  "method": "fibonacci"
+}
+```
+
+**Errore - File non trovato:**
+```json
+{
+  "status": "error",
+  "message": "File non trovato: myfile.py"
+}
+```
+
+**Errore - Metodo non trovato:**
+```json
+{
+  "status": "error",
+  "message": "Metodo \"mymethod\" non trovato nel file example_module.py",
+  "available_methods": ["hello_world", "add_numbers", "fibonacci", ...]
+}
+```
+
 ### shutdown
 Arresta il servizio.
 
@@ -263,9 +347,42 @@ Risposta:
   "echo": "Ciao a tutti!"
 }
 
+>>> start example_module.py hello_world
+Risposta:
+{
+  "status": "success",
+  "result": "Hello, World!",
+  "module": "example_module",
+  "method": "hello_world"
+}
+
+>>> start example_module.py add_numbers {"a":5,"b":3}
+Risposta:
+{
+  "status": "success",
+  "result": 8,
+  "module": "example_module",
+  "method": "add_numbers"
+}
+
 >>> quit
 Disconnessione...
 ```
+
+### File di Esempio (example_module.py)
+
+Il progetto include un file `example_module.py` con diverse funzioni che possono essere eseguite tramite il comando `start`:
+
+- `hello_world()`: Restituisce un saluto
+- `get_current_time()`: Restituisce l'ora corrente
+- `add_numbers(a, b)`: Somma due numeri
+- `multiply_numbers(x, y)`: Moltiplica due numeri
+- `fibonacci(n)`: Genera i primi n numeri di Fibonacci
+- `is_prime(number)`: Verifica se un numero è primo
+- `calculate_factorial(n)`: Calcola il fattoriale
+- E molte altre...
+
+Puoi usare questo file per testare il comando `start` o creare i tuoi moduli personalizzati.
 
 ## Architettura
 
@@ -302,9 +419,11 @@ def _handle_mycommand(self, data: Dict[str, Any]) -> Dict[str, Any]:
 ⚠️ **IMPORTANTE:**
 
 - Il comando `exec` può eseguire qualsiasi comando shell - usare solo in ambienti controllati
+- Il comando `start` può eseguire qualsiasi codice Python dai file specificati - verificare sempre i file prima dell'esecuzione
 - Non esporre il servizio su Internet senza adeguate misure di sicurezza
 - Considera l'aggiunta di autenticazione per ambienti di produzione
 - Valuta l'uso di SSL/TLS per connessioni crittografate
+- Limita l'accesso ai file che possono essere eseguiti con il comando `start`
 
 ## Log
 

@@ -78,14 +78,19 @@ def interactive_mode(client: SocketClient):
     """Modalità interattiva per inviare comandi"""
     print("\n=== Modalità Interattiva ===")
     print("Comandi disponibili:")
-    print("  help              - Mostra i comandi del servizio")
-    print("  ping              - Verifica la connessione")
-    print("  status            - Mostra lo stato del servizio")
-    print("  info              - Mostra informazioni sul sistema")
-    print("  echo <messaggio>  - Ritrasmette un messaggio")
-    print("  exec <comando>    - Esegue un comando shell")
-    print("  shutdown          - Arresta il servizio")
-    print("  quit              - Esce dal client")
+    print("  help                           - Mostra i comandi del servizio")
+    print("  ping                           - Verifica la connessione")
+    print("  status                         - Mostra lo stato del servizio")
+    print("  info                           - Mostra informazioni sul sistema")
+    print("  echo <messaggio>               - Ritrasmette un messaggio")
+    print("  exec <comando>                 - Esegue un comando shell")
+    print("  start <file> <metodo> [params] - Esegue un metodo da un file Python")
+    print("  shutdown                       - Arresta il servizio")
+    print("  quit                           - Esce dal client")
+    print()
+    print("Esempi comando start:")
+    print("  start example_module.py hello_world")
+    print("  start example_module.py add_numbers {\"a\":5,\"b\":3}")
     print()
 
     while True:
@@ -110,6 +115,24 @@ def interactive_mode(client: SocketClient):
                 params['message'] = args
             elif command == 'exec' and args:
                 params['command'] = args
+            elif command == 'start' and args:
+                # Parse per il comando start: <filename> <method> [params_json]
+                start_parts = args.split(maxsplit=2)
+                if len(start_parts) < 2:
+                    print("Errore: il comando start richiede almeno filename e method")
+                    print("Uso: start <filename> <method> [params_json]")
+                    continue
+
+                params['filename'] = start_parts[0]
+                params['method'] = start_parts[1]
+
+                # Se ci sono parametri JSON, parsali
+                if len(start_parts) == 3:
+                    try:
+                        params['params'] = json.loads(start_parts[2])
+                    except json.JSONDecodeError:
+                        print(f"Errore: parametri non validi (JSON richiesto): {start_parts[2]}")
+                        continue
 
             # Invia il comando
             response = client.send_command(command, **params)
@@ -137,6 +160,26 @@ def run_examples(client: SocketClient):
         ('info', {}),
         ('echo', {'message': 'Ciao dal client!'}),
     ]
+
+    # Aggiungi esempi del comando start se il file di esempio esiste
+    import os
+    if os.path.isfile('example_module.py'):
+        examples.extend([
+            ('start', {
+                'filename': 'example_module.py',
+                'method': 'hello_world'
+            }),
+            ('start', {
+                'filename': 'example_module.py',
+                'method': 'add_numbers',
+                'params': {'a': 10, 'b': 20}
+            }),
+            ('start', {
+                'filename': 'example_module.py',
+                'method': 'fibonacci',
+                'params': {'n': 10}
+            }),
+        ])
 
     for command, params in examples:
         print(f"Comando: {command} {params}")

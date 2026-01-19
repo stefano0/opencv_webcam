@@ -10,6 +10,8 @@ import logging
 import sys
 import os
 import subprocess
+import importlib.util
+import inspect
 from datetime import datetime
 from typing import Dict, Any, Callable
 
@@ -55,6 +57,7 @@ class SocketService:
             'help': self._handle_help,
             'exec': self._handle_exec,
             'info': self._handle_info,
+            'start': self._handle_start,
             'shutdown': self._handle_shutdown,
         }
 
@@ -96,6 +99,7 @@ class SocketService:
                 'help': 'Mostra questa lista di comandi',
                 'exec': 'Esegue un comando shell (parametro: command)',
                 'info': 'Restituisce informazioni sul sistema',
+                'start': 'Esegue un metodo da un file Python (parametri: filename, method)',
                 'shutdown': 'Arresta il servizio'
             }
         }
@@ -148,6 +152,115 @@ class SocketService:
             'hostname': socket.gethostname(),
             'cwd': os.getcwd()
         }
+
+    def _handle_start(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Esegue un metodo da un file Python specificato
+
+        Args:
+            data: Dizionario con 'filename' (nome del file Python) e 'method' (nome del metodo)
+
+        Returns:
+            Risultato dell'esecuzione del metodo
+        """
+        filename = data.get('filename', '')
+        method_name = data.get('method', '')
+
+        # Valida i parametri
+        if not filename:
+            return {
+                'status': 'error',
+                'message': 'Parametro "filename" non specificato'
+            }
+
+        if not method_name:
+            return {
+                'status': 'error',
+                'message': 'Parametro "method" non specificato'
+            }
+
+        # Verifica che il file esista
+        if not os.path.isfile(filename):
+            return {
+                'status': 'error',
+                'message': f'File non trovato: {filename}'
+            }
+
+        # Verifica che il file sia un file Python
+        if not filename.endswith('.py'):
+            return {
+                'status': 'error',
+                'message': f'Il file deve essere un file Python (.py): {filename}'
+            }
+
+        try:
+            # Carica dinamicamente il modulo
+            module_name = os.path.splitext(os.path.basename(filename))[0]
+            spec = importlib.util.spec_from_file_location(module_name, filename)
+
+            if spec is None or spec.loader is None:
+                return {
+                    'status': 'error',
+                    'message': f'Impossibile caricare il modulo: {filename}'
+                }
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            # Verifica che il metodo esista
+            if not hasattr(module, method_name):
+                available_methods = [
+                    name for name, obj in inspect.getmembers(module)
+                    if inspect.isfunction(obj) and not name.startswith('_')
+                ]
+                return {
+                    'status': 'error',
+                    'message': f'Metodo "{method_name}" non trovato nel file {filename}',
+                    'available_methods': available_methods
+                }
+
+            method = getattr(module, method_name)
+
+            # Verifica che sia effettivamente una funzione
+            if not callable(method):
+                return {
+                    'status': 'error',
+                    'message': f'"{method_name}" non è una funzione chiamabile'
+                }
+
+            # Ottiene i parametri aggiuntivi passati al comando
+            params = data.get('params', {})
+
+            # Esegue il metodo
+            logger.info(f"Esecuzione {filename}::{method_name} con parametri: {params}")
+
+            # Se params è un dizionario, passa come kwargs, altrimenti come args
+            if isinstance(params, dict):
+                result = method(**params)
+            elif isinstance(params, list):
+                result = method(*params)
+            else:
+                result = method()
+
+            return {
+                'status': 'success',
+                'result': result,
+                'module': module_name,
+                'method': method_name
+            }
+
+        except TypeError as e:
+            return {
+                'status': 'error',
+                'message': f'Errore nei parametri della funzione: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"Errore esecuzione {filename}::{method_name}: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'message': f'Errore durante l\'esecuzione: {str(e)}',
+                'exception_type': type(e).__name__
+            }
 
     def _handle_shutdown(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Arresta il servizio"""
